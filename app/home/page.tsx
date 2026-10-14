@@ -1,7 +1,7 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SignOutButton } from "@/components/home/sign-out-button";
+import Link from "next/link";
+import { HomeNavbar } from "@/components/home/home-navbar";
 import { createClient } from "@/lib/supabase/server";
 
 function HomeLoading() {
@@ -34,26 +34,22 @@ async function AuthenticatedHome() {
 
   return (
     <main className="home-page">
-      <header className="site-header">
-        <Link aria-label="Twin home" className="wordmark" href="/home">
-          twin<span>.</span>
-        </Link>
-        <SignOutButton />
-      </header>
+      <HomeNavbar name={displayName} />
       <section aria-labelledby="home-title" className="home-welcome">
         <p className="eyebrow">Your space</p>
         <h1 id="home-title">Welcome, {displayName}.</h1>
         <p>
-          Your Twin account is ready. Thoughtful connections start with being
-          yourself rn app is under construction, but we&apos;re excited to have you here. We&apos;ll be adding more features soon, so stay tuned for updates and new ways to connect with others.
+          Thoughtful connections start with being yourself. Create a profile
+          that reflects what matters to you, then explore the people who are
+          ready to meet.
         </p>
-        <div className="empty-state">
-          <span aria-hidden="true" className="empty-state-mark">✳</span>
-          <h2>Your story starts here.</h2>
-          <p>
-            We&apos;re making space for meaningful connections. There&apos;s
-            nothing to explore just yet.
-          </p>
+        <div className="home-start-actions">
+          <Link className="button button-primary" href="/profile/edit">
+            Create or edit your profile
+          </Link>
+          <Link className="button button-secondary" href="/discover">
+            Discover people
+          </Link>
         </div>
       </section>
     </main>

@@ -3,10 +3,20 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSafeRedirectPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
-const otpTypes = new Set<EmailOtpType>(["signup", "email", "recovery"]);
+const otpTypes = new Set<EmailOtpType>([
+  "signup",
+  "email",
+  "email_change",
+  "recovery",
+]);
 
 function callbackErrorDestination(next: string) {
-  const page = next === "/reset-password" ? "/reset-password" : "/login";
+  const page =
+    next === "/reset-password"
+      ? "/reset-password"
+      : next === "/settings/security"
+        ? "/settings/security"
+        : "/login";
   const destination = new URL(page, "https://twin.invalid");
   destination.searchParams.set("error", "invalid-link");
   return `${destination.pathname}${destination.search}`;

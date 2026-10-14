@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSafeRedirectPath } from "@/lib/auth/redirect";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 
-const protectedPaths = ["/home"];
+const protectedPaths = ["/home", "/profile", "/settings"];
 const guestOnlyPaths = ["/login", "/signup"];
 
 function isPathWithin(pathname: string, paths: string[]) {

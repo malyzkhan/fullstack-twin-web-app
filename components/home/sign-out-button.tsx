@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export function SignOutButton() {
+export function SignOutButton({ menuItem = false }: { menuItem?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -28,14 +28,14 @@ export function SignOutButton() {
   }
 
   return (
-    <div className="signout-wrap">
+    <div className={menuItem ? "signout-wrap signout-menu-item" : "signout-wrap"}>
       <button
-        className="button button-secondary"
+        className={menuItem ? "profile-menu-item profile-menu-logout" : "button button-secondary"}
         disabled={busy}
         onClick={() => void signOut()}
         type="button"
       >
-        {busy ? "Signing out…" : "Sign out"}
+        {busy ? "Signing out…" : "Logout"}
       </button>
       {error ? (
         <p className="form-error" role="alert">

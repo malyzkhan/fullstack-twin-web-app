@@ -29,6 +29,8 @@ export function getSafeRedirectPath(
 
 export function getCallbackUrl(origin: string, next: string) {
   const callbackUrl = new URL("/auth/callback", origin);
-  callbackUrl.searchParams.set("next", getSafeRedirectPath(next));
+  const safeNext =
+    next === "/reset-password" ? next : getSafeRedirectPath(next);
+  callbackUrl.searchParams.set("next", safeNext);
   return callbackUrl.toString();
 }

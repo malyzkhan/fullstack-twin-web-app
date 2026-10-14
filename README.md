@@ -64,5 +64,73 @@ uses only `NEXT_PUBLIC_SUPABASE_URL` and
 - `/home` — authenticated home; requires a verified email for email/password
   accounts.
 
-The app does not create a dating profile table or store passwords/auth tokens
-in application tables. Supabase Auth is the identity source.
+## Dating profiles and settings
+
+The dating profile is separate from Supabase Auth identity. Profile details,
+private discovery preferences, account settings, blocks, and reports are stored
+in their own tables. Passwords and session tokens are never copied into those
+tables. Date of birth is private and public profile responses expose only a
+calculated age. New profiles are not discoverable until their owner opts in;
+age and profile photos are initially visible, and other optional profile fields
+are private by default.
+
+Before using profile editing or settings in a Supabase project:
+
+1. Review and apply
+   [`supabase/migrations/202610140001_twin_profiles.sql`](./supabase/migrations/202610140001_twin_profiles.sql)
+   using the Supabase SQL Editor (or your normal migration workflow). It
+   provisions the profile tables, RLS policies, interest catalog, private
+   `profile-photos` Storage bucket, and signup trigger/backfill for existing
+   auth users. Paste the SQL file's contents into the editor, not its filename.
+   Because this migration creates database objects rather than returning query
+   rows, Supabase showing **Success. No rows returned** is expected.
+2. Confirm that the API schema exposes the tables by running this as a separate
+   query:
+
+   ```sql
+   select table_name
+   from information_schema.tables
+   where table_schema = 'public'
+     and table_name in (
+       'profiles', 'profile_visibility', 'user_preferences', 'user_settings',
+       'profile_photos', 'profile_interests', 'interests', 'blocked_users',
+       'reports'
+     )
+   order by table_name;
+   ```
+
+   It should return nine rows. If SQL reports the objects exist but the app
+   still reports a missing table, refresh the API schema cache:
+
+   ```sql
+   notify pgrst, 'reload schema';
+   ```
+
+3. Keep the `profile-photos` bucket private. The migration creates the bucket
+   with a 5 MB limit and JPG, PNG, and WebP MIME types and installs owner and
+   visibility-aware Storage policies. Do not make it public or remove those
+   policies.
+4. Optionally deploy secure account deletion from the repository root with
+   `supabase functions deploy delete-account`. Keep JWT verification enabled.
+   The Edge Function validates the signed-in user, removes their private
+   profile-photo files, and uses the server-side Supabase service-role secret
+   supplied to Edge Functions to delete that same Auth user. It never accepts
+   a user ID from the browser. Account deletion stays unavailable until this
+   function is deployed; no service-role key belongs in `.env.local` or the
+   web app.
+
+5. Apply
+   [`supabase/migrations/202610150001_discover_profiles.sql`](./supabase/migrations/202610150001_discover_profiles.sql)
+   after the profile migration. It adds the authenticated Discover feed RPC.
+   The function returns only active, discoverable profiles, omits users blocked
+   in either direction, and delegates field-level privacy to
+   `get_public_profile`. Refresh the Supabase API schema cache after applying
+   it if the app reports that the function is missing.
+
+The authenticated app includes profile creation/editing, account settings,
+public profile pages, and a paginated Discover listing. Users appear to others
+only after they explicitly activate discoverability; each profile field,
+including the six optional prompt answers, respects its visibility setting.
+Chats, matching, and notification delivery are not implemented in this phase.
+The settings UI saves notification preferences but does not yet deliver email
+or push notifications.

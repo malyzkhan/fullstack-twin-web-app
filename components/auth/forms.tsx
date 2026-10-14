@@ -457,12 +457,39 @@ export function ForgotPasswordForm() {
         },
       );
       if (resetError) {
-        setError("We couldn’t process that request right now. Please try again later.");
+        if (
+          resetError.code === "redirect_to_not_allowed" ||
+          resetError.message.toLowerCase().includes("redirect")
+        ) {
+          setError(
+            "Supabase rejected the recovery redirect. In Authentication → URL Configuration, allow http://localhost:3000/auth/callback, then try again.",
+          );
+        } else if (
+          resetError.status === 429 ||
+          resetError.code?.includes("rate")
+        ) {
+          setError(
+            "Too many recovery emails were requested. Wait a few minutes before trying again.",
+          );
+        } else if (
+          resetError.status !== undefined &&
+          resetError.status >= 500
+        ) {
+          setError(
+            "Supabase couldn’t send the recovery email. Check that email delivery is enabled and configured in your Supabase project.",
+          );
+        } else {
+          setError(
+            "Supabase couldn’t process the recovery request. Check the project’s email and redirect URL settings, then try again.",
+          );
+        }
         return;
       }
       setSubmitted(true);
     } catch {
-      setError("We couldn’t process that request right now. Please try again later.");
+      setError(
+        "We couldn’t reach Supabase. Check your connection and try again.",
+      );
     } finally {
       setBusy(false);
     }
