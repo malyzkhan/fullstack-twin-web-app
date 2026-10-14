@@ -156,6 +156,45 @@ The authenticated app includes profile creation/editing, account settings,
 public profile pages, and a paginated Discover listing. Users appear to others
 only after they explicitly activate discoverability; each profile field,
 including the six optional prompt answers, respects its visibility setting.
-Chats, matching, and notification delivery are not implemented in this phase.
 The settings UI saves notification preferences but does not yet deliver email
 or push notifications.
+
+## One-to-one text chat
+
+Chat requests are sent from eligible public profiles. The recipient must accept
+before a conversation is created. Messages are text-only, private to the two
+members, limited to 2,000 characters, and paginated; Supabase Realtime notifies
+the open conversation about new database messages. The inbox includes pending
+incoming requests and accepted conversations. No matching, media attachments,
+presence, or read receipts are included.
+
+Before using chat in a Supabase project:
+
+1. Apply
+   [`supabase/migrations/202610150002_twin_chat.sql`](./supabase/migrations/202610150002_twin_chat.sql)
+   after the profile and Discover migrations. Paste the full SQL file contents
+   into the SQL Editor (not its filename). **Success. No rows returned** is
+   expected. The migration creates the chat tables, indexes, row-level
+   security policies, RPCs, and database-side validation/rate limits.
+2. The migration adds `public.chat_messages` to the existing
+   `supabase_realtime` publication when that publication is present. In
+   **Database → Replication**, confirm `chat_messages` is listed for Realtime.
+   If it is not, enable it there. No additional environment variables or
+   Storage bucket are required for chat.
+3. If the application reports that a chat RPC/table is missing after running
+   the migration, refresh the Supabase API schema cache:
+
+   ```sql
+   notify pgrst, 'reload schema';
+   ```
+
+For a functional check, use two separate verified accounts whose profiles are
+active and discoverable. From account A, open B’s public profile and send a
+chat request. Confirm it appears in B’s `/chats` inbox; decline it and verify
+that no conversation is created. Send a new request, accept it as B, then send
+messages from each account and verify they appear live and remain after
+refreshing. Also verify an unrelated third account cannot open that
+conversation, and block the other participant from **Account Settings** to
+confirm the conversation and its history become inaccessible. These checks
+require the migration to be applied to the same Supabase project as the
+application; they are not run by the local build.

@@ -8,7 +8,7 @@ import { SignOutButton } from "./sign-out-button";
 const navigation = [
   { label: "Home", href: "/home" },
   { label: "Discover", href: "/discover" },
-  { label: "Chats", href: "/home#chats" },
+  { label: "Chats", href: "/chats" },
   { label: "Articles", href: "/home#articles" },
   { label: "Notes", href: "/home#notes" },
 ];
