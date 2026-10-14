@@ -54,6 +54,31 @@ them in browser code or `NEXT_PUBLIC_` variables. The browser configuration
 uses only `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 
+## Deploying on Vercel
+
+The root `proxy.ts` initializes Supabase for every application request, so the
+app will return HTTP 500 on page routes if its public Supabase configuration is
+missing or invalid. In Vercel, open **Project → Settings → Environment
+Variables** and set both variables below for the environment being deployed:
+
+- `NEXT_PUBLIC_SUPABASE_URL` — the Supabase project base URL, such as
+  `https://<project-ref>.supabase.co`; do not include `/rest/v1/`.
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — the publishable key from that same
+  Supabase project.
+
+Vercel deployment URLs on a branch/preview deployment use the **Preview**
+environment. Set these values for **Preview** as well as **Production** (or
+select **All Environments** if the same Supabase project should serve both).
+After changing either value, trigger a fresh deployment because `NEXT_PUBLIC_`
+variables are included during the build. Never use a service-role key here.
+
+Make sure the Supabase project referenced by the Vercel URL is the project
+where the profile and Discover migrations were applied. A local `.env` or
+`.env.local` does not configure Vercel. If the pages still return HTTP 500,
+inspect **Vercel → Project → Logs** for the deployment; the error from
+`proxy.ts` or Supabase Auth identifies whether configuration is missing,
+malformed, or unable to reach the configured project.
+
 ## Auth routes
 
 - `/signup` — email/password registration and social sign-in.
