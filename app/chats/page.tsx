@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { ChatInbox } from "@/components/chat/chat-inbox";
 import { getChatInbox } from "@/lib/chat/data";
 
 async function ChatInboxContent() {
+  await connection();
   const data = await getChatInbox();
   return (
     <ChatInbox

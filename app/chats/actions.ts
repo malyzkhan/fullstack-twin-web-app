@@ -98,6 +98,15 @@ export async function sendChatMessage(
     },
   );
   if (sendError) {
+    if (sendError.code === "PGRST202" || sendError.code === "42883") {
+      console.error("Chat messaging RPC is unavailable in Supabase.", {
+        code: sendError.code,
+      });
+      return {
+        error:
+          "Chat messaging isn’t enabled in this Supabase project yet. Apply the latest chat migration, then reload the API schema.",
+      };
+    }
     if (sendError.code === "P0001") {
       return { error: "You’re sending messages too quickly. Please wait a moment." };
     }
@@ -107,9 +116,18 @@ export async function sendChatMessage(
     if (sendError.code === "22023") {
       return { error: "Check your message and try again." };
     }
+    if (sendError.code === "23514") {
+      return { error: "Messages must contain 1 to 2000 non-whitespace characters." };
+    }
+    console.error("Supabase rejected a chat message.", {
+      code: sendError.code ?? "unknown",
+    });
     return { error: "Your message couldn’t be sent. Please try again." };
   }
   if (typeof messageId !== "string" || !UUID_PATTERN.test(messageId)) {
+    console.error("Supabase returned an invalid chat message identifier.", {
+      responseType: typeof messageId,
+    });
     return { error: "Your message couldn’t be confirmed. Please retry." };
   }
 
@@ -119,6 +137,11 @@ export async function sendChatMessage(
     .eq("id", messageId)
     .single();
   if (loadError || !message) {
+    if (loadError) {
+      console.error("A saved chat message could not be loaded.", {
+        code: loadError.code ?? "unknown",
+      });
+    }
     return { error: "Your message was saved, but couldn’t be loaded. Refresh the conversation." };
   }
 
