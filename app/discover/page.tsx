@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { connection } from "next/server";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import {
   getDiscoverableProfiles,
@@ -15,6 +16,7 @@ async function DiscoverContent({
 }: {
   searchParams: Promise<{ page?: string | string[] }>;
 }) {
+  await connection();
   const { page: rawPage } = await searchParams;
   const requestedPage = Array.isArray(rawPage) ? rawPage[0] : rawPage;
   const pageNumber = /^\d+$/.test(requestedPage ?? "")

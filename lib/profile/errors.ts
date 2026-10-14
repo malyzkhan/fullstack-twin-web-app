@@ -1,4 +1,5 @@
 export const PROFILE_SCHEMA_NOT_READY = "TWIN_PROFILE_SCHEMA_NOT_READY";
+export const DISCOVER_SCHEMA_NOT_READY = "TWIN_DISCOVER_SCHEMA_NOT_READY";
 
 type DatabaseErrorLike = {
   code?: string;

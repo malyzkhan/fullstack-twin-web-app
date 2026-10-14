@@ -2,7 +2,10 @@ import "server-only";
 
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { throwIfProfileSchemaMissing } from "./errors";
+import {
+  DISCOVER_SCHEMA_NOT_READY,
+  throwIfProfileSchemaMissing,
+} from "./errors";
 import type {
   InterestRecord,
   DiscoverableProfile,
@@ -153,7 +156,15 @@ export async function getDiscoverableProfiles(
     result_limit: 25,
     result_offset: Math.max(0, Math.floor(resultOffset)),
   });
-  if (error) throwIfProfileSchemaMissing(error);
+  if (error) {
+    if (
+      (error.code === "PGRST202" || error.code === "42883") &&
+      error.message.includes("list_discoverable_profiles")
+    ) {
+      throw new Error(DISCOVER_SCHEMA_NOT_READY);
+    }
+    throwIfProfileSchemaMissing(error);
+  }
   if (!Array.isArray(data)) {
     throw new Error("The Discover feed returned an invalid response.");
   }
