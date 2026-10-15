@@ -98,13 +98,19 @@ export async function sendChatMessage(
     },
   );
   if (sendError) {
-    if (sendError.code === "PGRST202" || sendError.code === "42883") {
+    if (
+      sendError.code === "PGRST202" ||
+      sendError.code === "42883" ||
+      sendError.code === "42P01" ||
+      sendError.code === "42703" ||
+      sendError.code === "42P10"
+    ) {
       console.error("Chat messaging RPC is unavailable in Supabase.", {
         code: sendError.code,
       });
       return {
         error:
-          "Chat messaging isn’t enabled in this Supabase project yet. Apply the latest chat migration, then reload the API schema.",
+          `Chat setup in Supabase is incomplete (database error ${sendError.code}). Apply the latest chat migration and refresh the API schema.`,
       };
     }
     if (sendError.code === "P0001") {
@@ -122,7 +128,9 @@ export async function sendChatMessage(
     console.error("Supabase rejected a chat message.", {
       code: sendError.code ?? "unknown",
     });
-    return { error: "Your message couldn’t be sent. Please try again." };
+    return {
+      error: `Your message could not be sent (database error ${sendError.code ?? "unknown"}). Please try again and share this code with support.`,
+    };
   }
   if (typeof messageId !== "string" || !UUID_PATTERN.test(messageId)) {
     console.error("Supabase returned an invalid chat message identifier.", {
