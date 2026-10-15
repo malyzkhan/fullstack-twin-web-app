@@ -1,4 +1,4 @@
-create table public.chat_conversations (
+create table if not exists public.chat_conversations (
   id uuid primary key default gen_random_uuid(),
   user_low uuid not null references auth.users (id) on delete cascade,
   user_high uuid not null references auth.users (id) on delete cascade,
@@ -8,7 +8,7 @@ create table public.chat_conversations (
   unique (user_low, user_high)
 );
 
-create table public.chat_requests (
+create table if not exists public.chat_requests (
   id uuid primary key default gen_random_uuid(),
   requester_id uuid not null references auth.users (id) on delete cascade,
   recipient_id uuid not null references auth.users (id) on delete cascade,
@@ -22,7 +22,7 @@ create table public.chat_requests (
   unique (pair_low, pair_high)
 );
 
-create table public.chat_members (
+create table if not exists public.chat_members (
   conversation_id uuid not null
     references public.chat_conversations (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -30,7 +30,7 @@ create table public.chat_members (
   primary key (conversation_id, user_id)
 );
 
-create table public.chat_messages (
+create table if not exists public.chat_messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null
     references public.chat_conversations (id) on delete cascade,
@@ -45,18 +45,18 @@ create table public.chat_messages (
   unique (conversation_id, sender_id, client_message_id)
 );
 
-create index chat_conversations_activity_idx
+create index if not exists chat_conversations_activity_idx
   on public.chat_conversations (last_activity_at desc, id);
-create index chat_requests_incoming_idx
+create index if not exists chat_requests_incoming_idx
   on public.chat_requests (recipient_id, created_at desc)
   where status = 'pending';
-create index chat_requests_outgoing_idx
+create index if not exists chat_requests_outgoing_idx
   on public.chat_requests (requester_id, created_at desc);
-create index chat_members_user_idx
+create index if not exists chat_members_user_idx
   on public.chat_members (user_id, conversation_id);
-create index chat_messages_conversation_order_idx
+create index if not exists chat_messages_conversation_order_idx
   on public.chat_messages (conversation_id, created_at desc, id desc);
-create index chat_messages_sender_rate_idx
+create index if not exists chat_messages_sender_rate_idx
   on public.chat_messages (sender_id, created_at desc);
 
 alter table public.chat_conversations enable row level security;
@@ -157,6 +157,7 @@ begin
 end;
 $$;
 
+drop trigger if exists blocked_users_lock_chat_pair on public.blocked_users;
 create trigger blocked_users_lock_chat_pair
   before insert or delete on public.blocked_users
   for each row execute function public.lock_chat_pair_for_block();
@@ -180,6 +181,7 @@ begin
 end;
 $$;
 
+drop trigger if exists blocked_users_decline_chat_requests on public.blocked_users;
 create trigger blocked_users_decline_chat_requests
   after insert on public.blocked_users
   for each row execute function public.decline_chat_requests_on_block();
@@ -187,18 +189,26 @@ create trigger blocked_users_decline_chat_requests
 revoke all on function public.decline_chat_requests_on_block()
   from public, anon, authenticated;
 
+drop policy if exists "Members can read unblocked conversations"
+  on public.chat_conversations;
 create policy "Members can read unblocked conversations"
   on public.chat_conversations for select to authenticated
   using (public.can_access_chat_conversation(id));
 
+drop policy if exists "Users can read only their own chat membership"
+  on public.chat_members;
 create policy "Users can read only their own chat membership"
   on public.chat_members for select to authenticated
   using (user_id = (select auth.uid()));
 
+drop policy if exists "Participants can read unblocked chat requests"
+  on public.chat_requests;
 create policy "Participants can read unblocked chat requests"
   on public.chat_requests for select to authenticated
   using (public.can_access_chat_request(id));
 
+drop policy if exists "Members can read unblocked conversation messages"
+  on public.chat_messages;
 create policy "Members can read unblocked conversation messages"
   on public.chat_messages for select to authenticated
   using (public.can_access_chat_conversation(conversation_id));
@@ -760,6 +770,7 @@ begin
 end;
 $$;
 
+drop trigger if exists chat_messages_update_activity on public.chat_messages;
 create trigger chat_messages_update_activity
   after insert on public.chat_messages
   for each row execute function public.update_chat_activity();

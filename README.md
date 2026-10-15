@@ -175,7 +175,9 @@ Before using chat in a Supabase project:
    after the profile and Discover migrations. Paste the full SQL file contents
    into the SQL Editor (not its filename). **Success. No rows returned** is
    expected. The migration creates the chat tables, indexes, row-level
-   security policies, RPCs, and database-side validation/rate limits.
+   security policies, RPCs, and database-side validation/rate limits. Its
+   table/index/policy/trigger setup tolerates a retry when this migration was
+   previously run manually before Supabase recorded its migration version.
 2. The migration adds `public.chat_messages` to the existing
    `supabase_realtime` publication when that publication is present. In
    **Database → Replication**, confirm `chat_messages` is listed for Realtime.
@@ -187,6 +189,26 @@ Before using chat in a Supabase project:
    ```sql
    notify pgrst, 'reload schema';
    ```
+
+If a Supabase deployment reports `relation "chat_conversations" already
+exists`, do not drop the chat tables or delete conversation data. This means
+the database already has at least part of the chat schema while the migration
+runner is trying to apply its migration. The migration can now be safely
+retried for the schema created by this file. For a persistent project where
+you already ran the full migration manually and verified all four chat tables,
+record that version as applied instead of executing it again:
+
+```powershell
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase migration repair 202610150002 --status applied --linked
+```
+
+Only mark the version applied if the entire migration succeeded previously;
+otherwise, rerun the updated migration so it can finish installing missing
+objects. In Supabase Dashboard, find the project ref in the project URL or
+Project Settings → General. Supabase Preview uses its own branch database and
+must have the same migration history/schema consistency.
 
 For a functional check, use two separate verified accounts whose profiles are
 active and discoverable. From account A, open B’s public profile and send a
