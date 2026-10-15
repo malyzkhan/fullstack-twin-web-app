@@ -183,7 +183,13 @@ Before using chat in a Supabase project:
    **Database → Replication**, confirm `chat_messages` is listed for Realtime.
    If it is not, enable it there. No additional environment variables or
    Storage bucket are required for chat.
-3. If the application reports that a chat RPC/table is missing after running
+3. Apply
+   [`supabase/migrations/202610150003_fix_chat_message_send.sql`](./supabase/migrations/202610150003_fix_chat_message_send.sql)
+   to existing deployments. It fixes a PostgreSQL `42702` ambiguous-column
+   failure in idempotent message inserts by targeting the named unique
+   constraint directly. Paste only this migration's contents if applying it
+   manually; do not rerun the full schema setup.
+4. If the application reports that a chat RPC/table is missing after running
    the migration, refresh the Supabase API schema cache:
 
    ```sql
@@ -206,7 +212,8 @@ supabase migration repair 202610150002 --status applied --linked
 
 Only mark the version applied if the entire migration succeeded previously;
 otherwise, rerun the updated migration so it can finish installing missing
-objects. In Supabase Dashboard, find the project ref in the project URL or
+objects. Apply migration `202610150003` after the earlier migrations. In
+Supabase Dashboard, find the project ref in the project URL or
 Project Settings → General. Supabase Preview uses its own branch database and
 must have the same migration history/schema consistency.
 

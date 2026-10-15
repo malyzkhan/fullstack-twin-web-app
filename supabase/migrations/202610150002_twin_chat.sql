@@ -737,7 +737,9 @@ begin
     send_chat_message.client_message_id,
     btrim(message_body)
   )
-  on conflict (conversation_id, sender_id, client_message_id) do nothing
+  on conflict on constraint
+    chat_messages_conversation_id_sender_id_client_message_id_key
+    do nothing
   returning id into new_message_id;
 
   if new_message_id is null then
