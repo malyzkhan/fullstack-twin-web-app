@@ -13,6 +13,7 @@ async function ChatConversationContent({
   const conversation = await getChatConversation(id);
   return (
     <ChatConversation
+      key={conversation.conversationId}
       conversationId={conversation.conversationId}
       currentUserId={conversation.userId}
       initialMessages={conversation.messages}

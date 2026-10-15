@@ -18,10 +18,56 @@ function formatMessageTime(value: string) {
   }).format(new Date(value));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseRealtimeMessage(value: unknown): ChatMessage | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.conversation_id !== "string" ||
+    typeof value.sender_id !== "string" ||
+    typeof value.body !== "string" ||
+    typeof value.created_at !== "string" ||
+    Number.isNaN(Date.parse(value.created_at)) ||
+    typeof value.client_message_id !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    conversation_id: value.conversation_id,
+    sender_id: value.sender_id,
+    body: value.body,
+    created_at: value.created_at,
+    client_message_id: value.client_message_id,
+  };
+}
+
 function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]) {
-  const byId = new Map(current.map((message) => [message.id, message]));
-  for (const message of incoming) byId.set(message.id, message);
-  return [...byId.values()].sort((left, right) => {
+  const merged: ChatMessage[] = [...current];
+
+  for (const item of incoming) {
+    const existingIndex = merged.findIndex((m) => {
+      if (m.id === item.id) return true;
+      if (
+        item.client_message_id &&
+        (m.client_message_id === item.client_message_id || m.id === item.client_message_id)
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingIndex >= 0) {
+      merged[existingIndex] = item;
+    } else {
+      merged.push(item);
+    }
+  }
+
+  return merged.sort((left, right) => {
     const timeOrder = left.created_at.localeCompare(right.created_at);
     return timeOrder || left.id.localeCompare(right.id);
   });
@@ -85,37 +131,83 @@ export function ChatConversation({
   useEffect(() => {
     let active = true;
     const supabase = createClient();
-    const channel = supabase
-      .channel(`chat-messages:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () => {
-          if (active) void refreshLatest();
-        },
-      )
-      .subscribe((status) => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function initRealtime() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!active) return;
-        if (status === "SUBSCRIBED") {
-          setSubscribed(true);
-          setRealtimeError("");
-          void refreshLatest();
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          setSubscribed(false);
-          setRealtimeError("Live updates are reconnecting. Your messages remain saved.");
-        } else if (status === "CLOSED") {
-          setSubscribed(false);
+        if (session?.access_token) {
+          await supabase.realtime.setAuth(session.access_token);
         }
-      });
+        if (!active) return;
+
+        const newChannel = supabase.channel(`chat-messages:${conversationId}`);
+
+        newChannel
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "chat_messages",
+              filter: `conversation_id=eq.${conversationId}`,
+            },
+            (payload) => {
+              if (!active) return;
+              const incoming = parseRealtimeMessage(payload.new);
+              if (incoming && incoming.conversation_id === conversationId) {
+                setMessages((current) => mergeMessages(current, [incoming]));
+              } else {
+                void refreshLatest();
+              }
+            },
+          )
+          .subscribe((status) => {
+            if (!active) return;
+            if (status === "SUBSCRIBED") {
+              setSubscribed(true);
+              setRealtimeError("");
+              void refreshLatest();
+            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+              setSubscribed(false);
+              setRealtimeError("Live updates are reconnecting. Your messages remain saved.");
+            } else if (status === "CLOSED") {
+              setSubscribed(false);
+            }
+          });
+
+        if (!active) {
+          void supabase.removeChannel(newChannel);
+          return;
+        }
+
+        channel = newChannel;
+      } catch {
+        if (!active) return;
+        setSubscribed(false);
+        setRealtimeError("Live updates are reconnecting. Your messages remain saved.");
+      }
+    }
+
+    void initRealtime();
+
+    const {
+      data: { subscription: authSubscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        void supabase.realtime.setAuth(session.access_token);
+      }
+    });
 
     return () => {
       active = false;
-      void supabase.removeChannel(channel);
+      authSubscription.unsubscribe();
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
     };
   }, [conversationId, refreshLatest]);
 
@@ -154,6 +246,20 @@ export function ChatConversation({
     const retryId = clientMessageId ?? crypto.randomUUID();
     setSending(true);
     setSendError("");
+
+    const optimisticMessage: ChatMessage = {
+      id: retryId,
+      conversation_id: conversationId,
+      sender_id: currentUserId,
+      body: cleanBody,
+      created_at: new Date().toISOString(),
+      client_message_id: retryId,
+    };
+
+    setMessages((current) => mergeMessages(current, [optimisticMessage]));
+    setDraft((current) => (current === body ? "" : current));
+    nearBottomRef.current = true;
+
     try {
       const result = await sendChatMessage(
         conversationId,
@@ -161,22 +267,26 @@ export function ChatConversation({
         retryId,
       );
       const message = result.message;
-      if (result.error) {
+      if (result.error || !message) {
         setRetryMessage({ body: cleanBody, id: retryId });
-        setSendError(result.error);
-        return;
-      }
-      if (message === undefined) {
-        setRetryMessage({ body: cleanBody, id: retryId });
-        setSendError("Your message couldn’t be sent. Try again.");
+        setSendError(result.error ?? "Your message couldn’t be sent. Try again.");
+        setMessages((current) =>
+          current.filter(
+            (m) => m.id !== retryId && m.client_message_id !== retryId,
+          ),
+        );
         return;
       }
       setRetryMessage(null);
       setMessages((current) => mergeMessages(current, [message]));
-      setDraft((current) => (current === body ? "" : current));
     } catch {
       setRetryMessage({ body: cleanBody, id: retryId });
       setSendError("Your message couldn’t be sent. Your text is still here to retry.");
+      setMessages((current) =>
+        current.filter(
+          (m) => m.id !== retryId && m.client_message_id !== retryId,
+        ),
+      );
     } finally {
       setSending(false);
     }
